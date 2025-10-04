@@ -3,13 +3,48 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 // Initialize Gemini AI with your API key
 const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY);
 
-// Configuration - Lower temperature for more consistent results
-const GEMINI_CONFIG = {
-  model: "gemini-2.5-flash", // Use gemini-pro for better reliability
-  generationConfig: {
-    temperature: 0.3, // Lower temperature for consistent results
-    maxOutputTokens: 2000,
+// Model configurations for different difficulty levels
+const MODEL_CONFIG = {
+  easy: {
+    model: "gemini-2.0-flash", // Fast and reliable for basic questions
+    generationConfig: {
+      temperature: 0.2, // Low temperature for consistent, factual questions
+      maxOutputTokens: 1500,
+      topP: 0.8,
+    }
   },
+  medium: {
+    model: "gemini-2.5-flash-lite", // Balanced model for moderate complexity
+    generationConfig: {
+      temperature: 0.4, // Slightly higher for more variety
+      maxOutputTokens: 2000,
+      topP: 0.85,
+    }
+  },
+  hard: {
+    model: "gemini-2.5-pro", // Pro model for complex questions
+    generationConfig: {
+      temperature: 0.3, // Balanced for complex but consistent questions
+      maxOutputTokens: 2500,
+      topP: 0.9,
+    }
+  },
+  mixed: {
+    model: "gemini-2.5-flash", // Flash for mixed (covers all levels)
+    generationConfig: {
+      temperature: 0.5, // Higher for variety across difficulties
+      maxOutputTokens: 2200,
+      topP: 0.9,
+    }
+  },
+  // Fallback configuration
+  default: {
+    model: "gemini-1.5-flash",
+    generationConfig: {
+      temperature: 0.3,
+      maxOutputTokens: 2000,
+    }
+  }
 };
 
 // Cache to prevent multiple API calls for same topic
@@ -17,32 +52,30 @@ const questionCache = new Map();
 
 // Enhanced prompt templates for difficulty-based generation
 const PROMPT_TEMPLATES = {
-  topicSearch: `Generate exactly 5 multiple choice questions about "{topic}" with {difficulty} difficulty.
+  topicSearch: `CRITICAL: You MUST return ONLY valid JSON. No other text.
 
-CRITICAL REQUIREMENTS:
-1. Return ONLY valid JSON array with exactly 5 questions
-2. Each question must have:
-   - "question" (clear, specific question)
-   - "options" (exactly 4 options as strings)
-   - "correctAnswer" (number 0-3 for correct option index)
-3. Questions should cover different aspects of {topic}
-4. Make only one option clearly correct, others plausible but wrong
-5. Do NOT include any explanations or additional text
+Generate exactly 5 multiple choice questions about "{topic}" with {difficulty} difficulty.
 
-DIFFICULTY GUIDELINES:
-- Easy: Basic facts, definitions, straightforward concepts. Suitable for beginners.
-- Medium: Applied knowledge, moderate complexity, requires some understanding.
-- Hard: Advanced concepts, analytical thinking, detailed knowledge required.
-- Mixed: Combine questions from all difficulty levels.
+REQUIREMENTS:
+- Return ONLY a JSON array with exactly 5 objects
+- Each object must have: "question", "options" (array of 4 strings), "correctAnswer" (number 0-3)
+- Ensure JSON syntax is perfect: use double quotes, no trailing commas, proper brackets
+- Make questions specific to the topic
+- Make only one option clearly correct
 
-STRICT JSON FORMAT:
+DIFFICULTY-SPECIFIC GUIDELINES:
+{difficultyGuidelines}
+
+EXAMPLE FORMAT:
 [
   {
-    "question": "Question text?",
+    "question": "What is...?",
     "options": ["Option A", "Option B", "Option C", "Option D"],
     "correctAnswer": 0
   }
-]`,
+]
+
+NOW GENERATE FOR: "{topic}" at {difficulty} level. RETURN ONLY JSON:`,
 
   feedback: `Create personalized feedback for a quiz result.
 
@@ -62,32 +95,355 @@ Make it:
 - Focus on improvement and learning`
 };
 
-// Difficulty configuration matching the frontend
+// Enhanced difficulty configuration with model-specific prompts
 const DIFFICULTY_CONFIG = {
   easy: {
     level: 'easy',
     label: 'Beginner',
-    promptHint: 'basic and fundamental',
-    description: 'Basic concepts, straightforward questions'
+    model: MODEL_CONFIG.easy.model,
+    description: 'Basic concepts, straightforward questions',
+    guidelines: `EASY LEVEL (Beginner):
+- Focus on basic facts, definitions, and fundamental concepts
+- Questions should be straightforward with clear correct answers
+- Use simple language accessible to beginners
+- Test recall of basic information
+- Avoid complex scenarios or advanced terminology
+- Example: "What is the capital of France?" rather than "What geopolitical factors influenced the selection of Paris as France's capital?"`
   },
   medium: {
     level: 'medium',
     label: 'Intermediate',
-    promptHint: 'moderately challenging',
-    description: 'Balanced mix of concepts'
+    model: MODEL_CONFIG.medium.model,
+    description: 'Balanced mix of concepts',
+    guidelines: `MEDIUM LEVEL (Intermediate):
+- Include applied knowledge and practical scenarios
+- Require some analysis or connection of concepts
+- Mix factual recall with basic application
+- Can include simple problem-solving
+- Use moderately complex language
+- Example: "Which programming paradigm is best suited for a banking application requiring high security and transaction integrity?"`
   },
   hard: {
     level: 'hard',
     label: 'Expert',
-    promptHint: 'advanced and challenging',
-    description: 'Advanced and detailed questions'
+    model: MODEL_CONFIG.hard.model,
+    description: 'Advanced and detailed questions',
+    guidelines: `HARD LEVEL (Expert):
+- Focus on advanced concepts and deep understanding
+- Require analytical thinking and synthesis of information
+- Include complex scenarios and nuanced distinctions
+- Test ability to apply knowledge in unfamiliar contexts
+- Use precise technical terminology where appropriate
+- Example: "In quantum computing, how does superposition differ from entanglement in terms of information processing capabilities?"`
   },
   mixed: {
     level: 'mixed',
     label: 'Mixed',
-    promptHint: 'varied difficulty levels',
-    description: 'Random difficulty levels'
+    model: MODEL_CONFIG.mixed.model,
+    description: 'Random difficulty levels',
+    guidelines: `MIXED LEVEL (Varied):
+- Create a balanced mix: 2 easy, 2 medium, 1 hard question
+- Easy: Basic facts and definitions
+- Medium: Applied knowledge and scenarios
+- Hard: Complex analysis and advanced concepts
+- Ensure clear progression in difficulty
+- Label the difficulty in your mind but don't include it in output`
   }
+};
+
+// Get model configuration for specific difficulty
+const getModelConfig = (difficulty) => {
+  const config = DIFFICULTY_CONFIG[difficulty] || DIFFICULTY_CONFIG.medium;
+  const modelConfig = MODEL_CONFIG[difficulty] || MODEL_CONFIG.default;
+  
+  return {
+    model: config.model,
+    generationConfig: modelConfig.generationConfig
+  };
+};
+
+// UPDATED: Ultra-robust JSON parsing function
+const safeJsonParse = (jsonString) => {
+  let cleaned = jsonString.trim();
+  
+  console.log('🔄 Attempting to parse JSON...');
+  console.log('Raw response length:', cleaned.length);
+  console.log('First 200 chars:', cleaned.substring(0, 200));
+
+  // Check for empty response
+  if (cleaned.length === 0) {
+    throw new Error('Empty response from AI');
+  }
+
+  // Multiple parsing attempts with increasing levels of cleaning
+  const parsingAttempts = [
+    // Attempt 1: Direct parse
+    () => {
+      console.log('🔹 Attempt 1: Direct parse');
+      return JSON.parse(cleaned);
+    },
+    
+    // Attempt 2: Remove ALL markdown code blocks including backticks
+    () => {
+      console.log('🔹 Attempt 2: Remove ALL markdown');
+      let attempt = cleaned
+        // Remove all backtick-related markdown
+        .replace(/^`*json\s*/gi, '') // Remove starting ```json
+        .replace(/`*$/gi, '') // Remove ending ```
+        .replace(/`/g, '') // Remove any remaining backticks
+        .trim();
+      
+      // Try to find JSON array if response got corrupted
+      const jsonMatch = attempt.match(/\[\s*{[\s\S]*}\s*\]/);
+      if (jsonMatch) {
+        attempt = jsonMatch[0];
+      }
+      return JSON.parse(attempt);
+    },
+    
+    // Attempt 3: Extract JSON from malformed responses
+    () => {
+      console.log('🔹 Attempt 3: Extract JSON from text');
+      
+      // Handle the specific case where response starts with `json
+      if (cleaned.startsWith('`') || cleaned.includes('`json')) {
+        // Find the first { after any backticks
+        const firstBrace = cleaned.indexOf('{');
+        if (firstBrace !== -1) {
+          // Find the last }
+          const lastBrace = cleaned.lastIndexOf('}');
+          if (lastBrace !== -1) {
+            const jsonContent = cleaned.substring(firstBrace, lastBrace + 1);
+            // Now try to extract complete JSON array
+            const arrayMatch = jsonContent.match(/\[\s*{[\s\S]*?}\s*\]/);
+            if (arrayMatch) {
+              return JSON.parse(arrayMatch[0]);
+            }
+          }
+        }
+      }
+      
+      // General JSON extraction
+      let attempt = cleaned
+        // Remove ALL backticks first
+        .replace(/`/g, '')
+        // Fix common JSON issues
+        .replace(/([{,]\s*)([a-zA-Z_$][a-zA-Z0-9_$]*)\s*:/g, '$1"$2":')
+        .replace(/,\s*([}\]])/g, '$1')
+        .replace(/'/g, '"')
+        .replace(/\\"/g, '"')
+        .trim();
+      
+      return JSON.parse(attempt);
+    },
+    
+    // Attempt 4: Manual reconstruction from question patterns
+    () => {
+      console.log('🔹 Attempt 4: Manual reconstruction');
+      const questions = [];
+      
+      // Remove all backticks first
+      const cleanText = cleaned.replace(/`/g, '');
+      
+      // More flexible regex to find question patterns
+      const questionPatterns = [
+        // Pattern 1: Standard JSON-like format
+        /{\s*"question"\s*:\s*"([^"]*)"[^}]*"options"\s*:\s*\[([^\]]*)\][^}]*"correctAnswer"\s*:\s*(\d)/g,
+        // Pattern 2: More flexible format
+        /question["']?\s*:\s*["']([^"']*)["'][^}]*options["']?\s*:\s*\[([^\]]*)\][^}]*correctAnswer["']?\s*:\s*(\d)/gi,
+        // Pattern 3: Even more flexible
+        /"question":\s*"([^"]*)"[^}]*"options":\s*\[([^\]]*)\][^}]*"correctAnswer":\s*(\d)/g
+      ];
+      
+      for (const pattern of questionPatterns) {
+        let match;
+        while ((match = pattern.exec(cleanText)) !== null && questions.length < 5) {
+          try {
+            const questionText = match[1].trim();
+            const optionsText = match[2];
+            const correctAnswer = parseInt(match[3]);
+            
+            // Parse options array more carefully
+            const options = optionsText
+              .split(/,\s*/)
+              .map(opt => {
+                // Remove quotes and trim
+                let cleanedOpt = opt.trim().replace(/^["']|["']$/g, '');
+                // Remove any trailing commas or brackets
+                cleanedOpt = cleanedOpt.replace(/,\s*$/, '');
+                return cleanedOpt;
+              })
+              .filter(opt => opt.length > 0 && !opt.includes(']') && !opt.includes('}'));
+            
+            if (questionText && 
+                questionText.length > 10 && 
+                options.length === 4 && 
+                !isNaN(correctAnswer) && 
+                correctAnswer >= 0 && 
+                correctAnswer <= 3) {
+              
+              // Check if we already have this question
+              const isDuplicate = questions.some(q => q.question === questionText);
+              if (!isDuplicate) {
+                questions.push({
+                  question: questionText,
+                  options: options,
+                  correctAnswer: correctAnswer
+                });
+                console.log(`✅ Found question: ${questionText.substring(0, 50)}...`);
+              }
+            }
+          } catch (e) {
+            console.log('Skipping invalid question block');
+            continue;
+          }
+        }
+        
+        if (questions.length >= 3) {
+          console.log(`✅ Reconstructed ${questions.length} questions with pattern`);
+          return questions;
+        }
+      }
+      
+      throw new Error('Not enough valid questions found');
+    },
+    
+    // Attempt 5: Simple text extraction as last resort
+    () => {
+      console.log('🔹 Attempt 5: Simple text extraction');
+      const questions = [];
+      const lines = cleaned.replace(/`/g, '').split('\n');
+      
+      let currentQuestion = null;
+      let inQuestionBlock = false;
+      let optionsFound = 0;
+      
+      for (const line of lines) {
+        const trimmed = line.trim();
+        
+        // Look for question indicator
+        if (trimmed.includes('"question"') || trimmed.includes('question:')) {
+          if (currentQuestion && currentQuestion.question && optionsFound === 4) {
+            questions.push(currentQuestion);
+          }
+          currentQuestion = { question: '', options: [], correctAnswer: 0 };
+          inQuestionBlock = true;
+          optionsFound = 0;
+          
+          // Extract question text
+          const questionMatch = trimmed.match(/(?:question["']?\s*:\s*["']?)([^"',}]*)/);
+          if (questionMatch && questionMatch[1].trim().length > 10) {
+            currentQuestion.question = questionMatch[1].trim();
+          }
+        }
+        
+        // Look for options
+        else if (inQuestionBlock && (trimmed.includes('"options"') || trimmed.includes('options:'))) {
+          const optionsMatch = trimmed.match(/\[([^\]]*)\]/);
+          if (optionsMatch) {
+            const options = optionsMatch[1]
+              .split(',')
+              .map(opt => opt.trim().replace(/^["']|["']$/g, ''))
+              .filter(opt => opt.length > 0);
+            
+            if (options.length === 4) {
+              currentQuestion.options = options;
+              optionsFound = 4;
+            }
+          }
+        }
+        
+        // Look for individual options
+        else if (inQuestionBlock && optionsFound < 4 && trimmed.match(/^["']?[A-D][":]?\s*/)) {
+          const optionText = trimmed.replace(/^["']?[A-D][":]?\s*/, '').replace(/["',]$/, '').trim();
+          if (optionText && !currentQuestion.options.includes(optionText)) {
+            currentQuestion.options.push(optionText);
+            optionsFound++;
+          }
+        }
+        
+        // Look for correct answer
+        else if (inQuestionBlock && (trimmed.includes('"correctAnswer"') || trimmed.includes('correctAnswer:'))) {
+          const answerMatch = trimmed.match(/(?:correctAnswer["']?\s*:\s*)(\d)/);
+          if (answerMatch) {
+            currentQuestion.correctAnswer = parseInt(answerMatch[1]);
+          }
+        }
+        
+        // End of object or block
+        else if (trimmed === '}' || trimmed === '],' || trimmed.includes('}')) {
+          if (currentQuestion && currentQuestion.question && currentQuestion.options.length === 4) {
+            questions.push(currentQuestion);
+          }
+          inQuestionBlock = false;
+          currentQuestion = null;
+          optionsFound = 0;
+        }
+      }
+      
+      // Don't forget the last question
+      if (currentQuestion && currentQuestion.question && currentQuestion.options.length === 4) {
+        questions.push(currentQuestion);
+      }
+      
+      if (questions.length >= 2) { // Accept even 2 questions as last resort
+        console.log(`✅ Reconstructed ${questions.length} questions via simple extraction`);
+        return questions;
+      }
+      throw new Error('Not enough valid questions found');
+    }
+  ];
+
+  // Try each parsing attempt
+  for (let i = 0; i < parsingAttempts.length; i++) {
+    try {
+      const result = parsingAttempts[i]();
+      if (result && Array.isArray(result) && result.length > 0) {
+        console.log(`✅ Parse successful with attempt ${i + 1}`);
+        return result;
+      }
+    } catch (error) {
+      console.log(`❌ Attempt ${i + 1} failed:`, error.message);
+      // Continue to next attempt
+    }
+  }
+  
+  throw new Error('All JSON parsing attempts failed');
+};
+
+// More flexible validation function
+const validateQuestions = (questions) => {
+  if (!Array.isArray(questions)) {
+    console.error('❌ Validation failed: Not an array');
+    return false;
+  }
+
+  if (questions.length < 3) { // Reduced from 5 to 3 for flexibility
+    console.error(`❌ Validation failed: Only ${questions.length} questions, need at least 3`);
+    return false;
+  }
+
+  let validCount = 0;
+  for (const q of questions) {
+    if (q.question && 
+        typeof q.question === 'string' && 
+        q.question.length > 10 &&
+        Array.isArray(q.options) && 
+        q.options.length === 4 &&
+        typeof q.correctAnswer === 'number' && 
+        q.correctAnswer >= 0 && 
+        q.correctAnswer <= 3) {
+      validCount++;
+    }
+  }
+
+  if (validCount >= 3) { // Require at least 3 valid questions
+    console.log(`✅ Validation passed: ${validCount}/${questions.length} questions are valid`);
+    return true;
+  }
+
+  console.error(`❌ Validation failed: Only ${validCount} valid questions`);
+  return false;
 };
 
 // Test function to check if Gemini API is working
@@ -96,7 +452,7 @@ export const testGeminiAPI = async () => {
     console.log('🧪 Testing Gemini API connection...');
     
     const model = genAI.getGenerativeModel({ 
-      model: GEMINI_CONFIG.model,
+      model: MODEL_CONFIG.default.model,
       generationConfig: { temperature: 0.1, maxOutputTokens: 100 }
     });
 
@@ -123,51 +479,64 @@ export const generateQuizQuestions = async (topic, difficulty = 'medium') => {
 
   const maxRetries = 2;
   let retryCount = 0;
+  let currentDifficulty = difficulty;
+
+  // If expert level fails, we'll try intermediate as fallback
+  let fallbackToIntermediate = false;
 
   while (retryCount < maxRetries) {
     try {
-      console.log(`🔍 Generating questions for: "${topic}" with difficulty: "${difficulty}" (Attempt ${retryCount + 1})`);
+      console.log(`🔍 Generating questions for: "${topic}" with difficulty: "${currentDifficulty}" (Attempt ${retryCount + 1})`);
+
+      // Get model configuration based on difficulty
+      const modelConfig = getModelConfig(currentDifficulty);
+      const difficultyConfig = DIFFICULTY_CONFIG[currentDifficulty] || DIFFICULTY_CONFIG.medium;
+      
+      console.log(`🎯 Using model: ${modelConfig.model} for ${currentDifficulty} difficulty`);
 
       const model = genAI.getGenerativeModel({
-        model: GEMINI_CONFIG.model,
-        generationConfig: GEMINI_CONFIG.generationConfig
+        model: modelConfig.model,
+        generationConfig: modelConfig.generationConfig
       });
 
-      // Get difficulty label for the prompt
-      const difficultyLabel = DIFFICULTY_CONFIG[difficulty]?.label || 'Medium';
-      
+      // Get difficulty-specific prompt
       const prompt = PROMPT_TEMPLATES.topicSearch
         .replace(/{topic}/g, topic)
-        .replace(/{difficulty}/g, difficultyLabel);
+        .replace(/{difficulty}/g, difficultyConfig.label)
+        .replace(/{difficultyGuidelines}/g, difficultyConfig.guidelines);
       
-      console.log('📝 Prompt sent to AI with difficulty:', difficultyLabel);
+      console.log('📝 Prompt sent to AI with difficulty-specific guidelines');
 
       const result = await model.generateContent(prompt);
       const response = await result.response;
       const aiResponse = response.text();
       
-      // Clean the response
-      const cleanedResponse = cleanAIResponse(aiResponse);
-      console.log('✅ Received and cleaned AI response');
+      console.log('📨 Raw AI response received, length:', aiResponse.length);
+
+      // Check for empty response
+      if (!aiResponse || aiResponse.trim().length === 0) {
+        throw new Error('Empty response from AI');
+      }
       
-      // Parse and validate the JSON response
+      // Use safe JSON parsing
       let questions;
       try {
-        questions = JSON.parse(cleanedResponse);
-        console.log('✅ Successfully parsed JSON');
+        questions = safeJsonParse(aiResponse);
       } catch (parseError) {
-        console.error('❌ JSON parsing error:', parseError);
-        throw new Error('AI returned invalid JSON format');
+        console.error('❌ JSON parsing failed:', parseError);
+        throw new Error(`JSON parsing error: ${parseError.message}`);
       }
 
       // Enhanced validation
       if (validateQuestions(questions)) {
-        console.log('✅ Successfully generated AI questions for topic:', topic, 'with difficulty:', difficulty);
+        console.log('✅ Successfully generated AI questions for topic:', topic, 'with difficulty:', currentDifficulty);
         
         // Add difficulty metadata to questions
         questions = questions.map(q => ({
           ...q,
-          difficulty: difficulty // Add difficulty to each question
+          difficulty: currentDifficulty,
+          modelUsed: modelConfig.model,
+          originalRequestedDifficulty: difficulty // Track what was originally requested
         }));
         
         // Cache the results
@@ -181,12 +550,29 @@ export const generateQuizQuestions = async (topic, difficulty = 'medium') => {
       retryCount++;
       console.error(`❌ Attempt ${retryCount} failed:`, error.message);
 
+      // If expert level fails and we haven't tried intermediate yet, switch to intermediate
+      if (difficulty === 'hard' && !fallbackToIntermediate && (error.message.includes('Empty response') || error.message.includes('JSON parsing') || error.message.includes('All JSON parsing attempts'))) {
+        console.log('🔄 Expert level failed, falling back to intermediate level...');
+        currentDifficulty = 'medium';
+        fallbackToIntermediate = true;
+        retryCount = 0; // Reset retry count for intermediate level
+        continue; // Continue with intermediate level
+      }
+
       if (retryCount >= maxRetries) {
         console.error('🚨 All retry attempts failed, using fallback questions');
-        const fallbackQuestions = getBasicFallbackQuestions(topic, difficulty);
+        const fallbackQuestions = getBasicFallbackQuestions(topic, currentDifficulty);
+        
+        // Add metadata to fallback questions
+        const enhancedFallbackQuestions = fallbackQuestions.map(q => ({
+          ...q,
+          originalRequestedDifficulty: difficulty,
+          isFallback: true
+        }));
+        
         // Cache fallback results too
-        questionCache.set(cacheKey, fallbackQuestions);
-        return fallbackQuestions;
+        questionCache.set(cacheKey, enhancedFallbackQuestions);
+        return enhancedFallbackQuestions;
       }
 
       // Wait before retrying
@@ -201,8 +587,9 @@ export const generateFeedback = async (score, totalQuestions, topic, difficulty 
   try {
     console.log('🔄 Generating AI feedback...', { score, totalQuestions, topic, difficulty });
     
+    // Use flash model for feedback (faster and cheaper)
     const model = genAI.getGenerativeModel({
-      model: GEMINI_CONFIG.model,
+      model: MODEL_CONFIG.easy.model, // Use flash model for feedback
       generationConfig: {
         temperature: 0.3,
         maxOutputTokens: 200,
@@ -226,7 +613,7 @@ export const generateFeedback = async (score, totalQuestions, topic, difficulty 
     
     console.log('✅ AI Feedback generated:', feedback);
     
-    // ✅ ADD THIS VALIDATION: Check if feedback is empty
+    // Check if feedback is empty
     if (!feedback || feedback.length < 5) {
       console.log('⚠️ AI returned empty feedback, using fallback');
       return generateEnhancedFallbackFeedback(score, totalQuestions, topic, difficulty);
@@ -245,8 +632,6 @@ export const generateFeedback = async (score, totalQuestions, topic, difficulty 
 const generateEnhancedFallbackFeedback = (score, totalQuestions, topic, difficulty = 'medium') => {
   const percentage = (score / totalQuestions) * 100;
   const topicName = topic || 'this topic';
-  //const difficultyLabel = DIFFICULTY_CONFIG[difficulty]?.label || 'Medium';
-  
   const difficultyContext = {
     easy: "beginner",
     medium: "intermediate", 
@@ -265,45 +650,6 @@ const generateEnhancedFallbackFeedback = (score, totalQuestions, topic, difficul
   } else {
     return `Perfect score! ${score}/${totalQuestions} on ${difficultyContext} level ${topicName}. Outstanding! You've completely mastered this ${difficultyContext} level. Consider challenging yourself with more advanced material! 🏆`;
   }
-};
-
-// Enhanced response cleaning function
-const cleanAIResponse = (response) => {
-  let cleaned = response.trim();
-  
-  // Remove markdown code blocks
-  cleaned = cleaned.replace(/```json\n?/g, '');
-  cleaned = cleaned.replace(/\n?```/g, '');
-  cleaned = cleaned.replace(/```/g, '');
-  
-  // Extract JSON array if wrapped in other text
-  const firstBracket = cleaned.indexOf('[');
-  const lastBracket = cleaned.lastIndexOf(']');
-  
-  if (firstBracket !== -1 && lastBracket !== -1) {
-    cleaned = cleaned.substring(firstBracket, lastBracket + 1);
-  }
-  
-  // Remove trailing commas that might break JSON parsing
-  cleaned = cleaned.replace(/,\s*\]/g, ']');
-  cleaned = cleaned.replace(/,\s*\}\s*\]/g, '}]');
-  
-  return cleaned.trim();
-};
-
-// Simplified validation function
-const validateQuestions = (questions) => {
-  if (!Array.isArray(questions) || questions.length !== 5) {
-    return false;
-  }
-
-  for (const q of questions) {
-    if (!q.question || !Array.isArray(q.options) || q.options.length !== 4 || 
-        typeof q.correctAnswer !== 'number' || q.correctAnswer < 0 || q.correctAnswer > 3) {
-      return false;
-    }
-  }
-  return true;
 };
 
 // Enhanced fallback data with difficulty variations
@@ -388,7 +734,8 @@ const getBasicFallbackQuestions = (topic, difficulty = 'medium') => {
   // Add difficulty to each question
   questions = questions.map(q => ({
     ...q,
-    difficulty: difficulty
+    difficulty: difficulty,
+    modelUsed: 'fallback' // Mark as fallback
   }));
 
   return questions;
@@ -401,4 +748,4 @@ export const clearQuestionCache = () => {
 };
 
 // Export difficulty config for use in components
-export { DIFFICULTY_CONFIG };
+export { DIFFICULTY_CONFIG, MODEL_CONFIG };
