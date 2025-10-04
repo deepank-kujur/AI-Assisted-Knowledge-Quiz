@@ -1,4 +1,4 @@
-<img width="1919" height="1017" alt="image" src="https://github.com/user-attachments/assets/defd2601-27c3-422d-b86a-818cf866210d" /># AI-Assisted Knowledge Quiz
+# AI-Assisted Knowledge Quiz
 
 An interactive quiz application that generates educational questions using AI and provides a seamless quiz experience with progress tracking and personalized feedback.
 
@@ -214,22 +214,24 @@ Implement offline capability with cached questions
 
 ## 📱 Screenshots
 
-Topic selection screen
+### Topic selection screen
 Dark mode:
+
 <img width="1919" height="1019" alt="Screenshot 2025-10-04 162952" src="https://github.com/user-attachments/assets/4ee1aac3-f3ef-45b6-a3e8-4647a11e0856" />
 light mode:
+
 <img width="1919" height="1017" alt="Screenshot 2025-10-04 163012" src="https://github.com/user-attachments/assets/2784b4d6-2478-4f23-b019-cd72b8c5b102" />
 
 
-Quiz generating
+### Quiz generating
 <img width="1919" height="1018" alt="Screenshot 2025-10-04 163447" src="https://github.com/user-attachments/assets/35864c6a-28db-487d-8e66-218428f54e36" />
 
-Quiz question interface with progress
+### Quiz question interface with progress
 <img width="1919" height="1016" alt="Screenshot 2025-10-04 163538" src="https://github.com/user-attachments/assets/4705ecaa-b156-44e3-9771-a385deb200a7" />
 <img width="1919" height="1017" alt="Screenshot 2025-10-04 163604" src="https://github.com/user-attachments/assets/67a351cc-2dd4-4ee8-8e2d-ce9eb327c734" />
 
 
-Results screen with AI feedback
+### Results screen with AI feedback
 <img width="1919" height="1019" alt="Screenshot 2025-10-04 163910" src="https://github.com/user-attachments/assets/3b9dcf49-2a43-4dd1-aecb-d9f24d88cc46" />
 
 
