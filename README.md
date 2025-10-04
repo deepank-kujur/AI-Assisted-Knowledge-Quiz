@@ -1,4 +1,4 @@
-# AI-Assisted Knowledge Quiz
+<img width="1919" height="1017" alt="image" src="https://github.com/user-attachments/assets/defd2601-27c3-422d-b86a-818cf866210d" /># AI-Assisted Knowledge Quiz
 
 An interactive quiz application that generates educational questions using AI and provides a seamless quiz experience with progress tracking and personalized feedback.
 
@@ -22,6 +22,10 @@ This project is a frontend-focused React application that leverages AI APIs to d
 
 -**Topic Selection**: Multiple knowledge domains to choose from
 
+-**Multiple Difficulty Levels**: Easy, Medium, and Hard options to suit all knowledge levels
+
+-**Theme Customization**: Toggle between Dark Mode and Light Mode for comfortable viewing
+
 ## 🛠️ Tech Stack
 ### Frontend
 -**React** - Modern UI framework with hooks for state management
@@ -34,6 +38,8 @@ This project is a frontend-focused React application that leverages AI APIs to d
 -**Google Gemini AI API** - For generating quiz questions and feedback
 
 -**JSON Response Handling** - Consistent data structure for AI responses
+
+-**Dynamic Prompting** - Difficulty-aware question generation
 
 ## 📦 Installation & Setup
 ### Prerequisites
@@ -68,21 +74,28 @@ Personalized Results: Receive AI-generated feedback based on your score
 ## 🏗️ Project Structure
 ```bash
 quiz-generator/
-├── public/
-│   └── index.html              # Main HTML file with Tailwind CDN
+├── public/                 # Static assets
+│   └── index.html
 ├── src/
-│   ├── components/
-│   │   ├── TopicSelection.jsx  # Topic selection screen
-│   │   ├── QuizQuestion.jsx    # Individual question display
-│   │   ├── QuizResults.jsx     # Results and feedback screen
-│   │   └── QuizGenerator.jsx   # Main quiz component
-│   ├── services/
-│   │   └── aiService.js        # AI API integration service
-│   ├── App.jsx                 # Main application component
-│   ├── main.jsx               # React DOM rendering
-│   └── index.css              # Additional styles
-├── package.json
-└── README.md
+│   ├── assets/            # Images, icons, and other static files
+│   ├── components/        # React components
+│   │   ├── QuizGenerator.jsx    # Main quiz orchestration component
+│   │   ├── QuizQuestion.jsx     # Individual question display
+│   │   ├── QuizResults.jsx      # Results and feedback screen
+│   │   ├── ThemeToggle.jsx      # Dark/Light mode switch
+│   │   └── TopicSelection.jsx   # Topic and difficulty selection
+│   ├── context/           # React context providers
+│   │   └── ThemeContext.jsx     # Theme management context
+│   ├── services/          # External service integrations
+│   │   └── aiService.js         # AI API integration service
+│   ├── App.jsx            # Root application component
+│   ├── main.jsx           # React DOM rendering entry point
+│   └── index.css          # Global styles and Tailwind imports
+├── env/                   # Environment variables
+├── package.json           # Project dependencies and scripts
+├── vite.config.js         # Vite configuration
+├── eslint.config.js       # ESLint configuration
+└── README.md              # Project documentation
 ```
 ## 🔧 Core Components
 ### TopicSelection.jsx
@@ -123,7 +136,7 @@ The application uses AI APIs with carefully crafted prompts to ensure consistent
 javascript
 // Example AI prompt structure
 const PROMPT_TEMPLATES = {
-  topicSearch: `Generate exactly 5 multiple choice questions about "{topic}".
+  topicSearch: `Generate exactly 5 multiple choice questions about "{topic}" with {difficulty} difficulty.
 
 CRITICAL REQUIREMENTS:
 1. Return ONLY valid JSON array with exactly 5 questions
@@ -134,6 +147,12 @@ CRITICAL REQUIREMENTS:
 3. Questions should cover different aspects of {topic}
 4. Make only one option clearly correct, others plausible but wrong
 5. Do NOT include any explanations or additional text
+
+DIFFICULTY GUIDELINES:
+- Easy: Basic facts, definitions, straightforward concepts. Suitable for beginners.
+- Medium: Applied knowledge, moderate complexity, requires some understanding.
+- Hard: Advanced concepts, analytical thinking, detailed knowledge required.
+- Mixed: Combine questions from all difficulty levels.
 
 STRICT JSON FORMAT:
 [
@@ -150,16 +169,32 @@ Quiz Details:
 - Topic: {topic}
 - Score: {score} out of {totalQuestions}
 - Percentage: {percentage}%
+- Difficulty: {difficulty}
 
 IMPORTANT: Return ONLY the feedback text, no JSON or additional formatting.
 
 Make it:
 - Encouraging and motivational
 - Brief (under 60 words)
-- Appropriate for the score level
-- Include the score and topic
+- Appropriate for the score level and difficulty
+- Include the score, topic, and difficulty context
 - Focus on improvement and learning`
 };
+
+## 🎨 Theme System
+### Dark Mode Features
+Dark background with light text for reduced eye strain
+
+High contrast color scheme for better readability
+
+Subtle shadows and depth effects
+
+### Light Mode Features
+Clean white background with dark text
+
+Bright, energetic color palette
+
+Optimized for daytime usage
 
 
 
@@ -180,18 +215,22 @@ Implement offline capability with cached questions
 ## 📱 Screenshots
 
 Topic selection screen
-<img width="1919" height="1012" alt="Screenshot 2025-10-03 180057" src="https://github.com/user-attachments/assets/88cb5aa9-5658-49b9-8966-e7d9a8ed0bb6" />
+Dark mode:
+<img width="1919" height="1019" alt="Screenshot 2025-10-04 162952" src="https://github.com/user-attachments/assets/4ee1aac3-f3ef-45b6-a3e8-4647a11e0856" />
+light mode:
+<img width="1919" height="1017" alt="Screenshot 2025-10-04 163012" src="https://github.com/user-attachments/assets/2784b4d6-2478-4f23-b019-cd72b8c5b102" />
+
 
 Quiz generating
-<img width="1919" height="1023" alt="Screenshot 2025-10-03 180118" src="https://github.com/user-attachments/assets/3a068879-3e11-40b0-b0f8-a5d193837b5c" />
+<img width="1919" height="1018" alt="Screenshot 2025-10-04 163447" src="https://github.com/user-attachments/assets/35864c6a-28db-487d-8e66-218428f54e36" />
 
 Quiz question interface with progress
-<img width="1919" height="1017" alt="Screenshot 2025-10-03 180135" src="https://github.com/user-attachments/assets/8f4c4bd3-09e2-4834-8457-16f3d557870f" />
-<img width="1919" height="1015" alt="Screenshot 2025-10-03 180225" src="https://github.com/user-attachments/assets/fb53e7b9-d4b2-443e-a92a-acd17473fe5a" />
+<img width="1919" height="1016" alt="Screenshot 2025-10-04 163538" src="https://github.com/user-attachments/assets/4705ecaa-b156-44e3-9771-a385deb200a7" />
+<img width="1919" height="1017" alt="Screenshot 2025-10-04 163604" src="https://github.com/user-attachments/assets/67a351cc-2dd4-4ee8-8e2d-ce9eb327c734" />
 
 
 Results screen with AI feedback
-<img width="1919" height="1016" alt="Screenshot 2025-10-03 180259" src="https://github.com/user-attachments/assets/15f51933-1eb7-4461-b495-75b7266a9f2a" />
+<img width="1919" height="1019" alt="Screenshot 2025-10-04 163910" src="https://github.com/user-attachments/assets/3b9dcf49-2a43-4dd1-aecb-d9f24d88cc46" />
 
 
 Mobile responsive views
