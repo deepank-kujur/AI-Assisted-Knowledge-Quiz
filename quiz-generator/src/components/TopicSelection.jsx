@@ -258,7 +258,7 @@ export default function TopicSelection({ onTopicSelect }) {
                     value={customTopic}
                     onChange={(e) => setCustomTopic(e.target.value)}
                     placeholder="Enter your realm of interest..."
-                    className="w-full p-3 border-2 border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 outline-none transition-all duration-300 focus:border-gray-600 dark:focus:border-gray-400 focus:bg-white dark:focus:bg-gray-800 focus:shadow-md bg-gray-50/50 dark:bg-gray-700/50 transition-colors duration-300"
+                    className="w-full p-3 border-2 border-gray-300 dark:border-gray-600 rounded-lg text-sm text-purple-500 placeholder-gray-400 dark:placeholder-gray-500 outline-none transition-all duration-300 focus:border-gray-600 dark:focus:border-gray-400 focus:bg-white dark:focus:bg-gray-800 focus:shadow-md bg-gray-50/50 dark:bg-gray-700/50 transition-colors duration-300"
                     onKeyPress={(e) => e.key === 'Enter' && handleGenerateQuiz(customTopic)}
                     disabled={isGenerating}
                   />
