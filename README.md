@@ -178,12 +178,20 @@ Add user accounts and progress tracking
 Implement offline capability with cached questions
 
 ## 📱 Screenshots
-[Add your screenshots here showing:]
 
 Topic selection screen
+<img width="1919" height="1012" alt="Screenshot 2025-10-03 180057" src="https://github.com/user-attachments/assets/88cb5aa9-5658-49b9-8966-e7d9a8ed0bb6" />
+
+Quiz generating
+<img width="1919" height="1023" alt="Screenshot 2025-10-03 180118" src="https://github.com/user-attachments/assets/3a068879-3e11-40b0-b0f8-a5d193837b5c" />
 
 Quiz question interface with progress
+<img width="1919" height="1017" alt="Screenshot 2025-10-03 180135" src="https://github.com/user-attachments/assets/8f4c4bd3-09e2-4834-8457-16f3d557870f" />
+<img width="1919" height="1015" alt="Screenshot 2025-10-03 180225" src="https://github.com/user-attachments/assets/fb53e7b9-d4b2-443e-a92a-acd17473fe5a" />
+
 
 Results screen with AI feedback
+<img width="1919" height="1016" alt="Screenshot 2025-10-03 180259" src="https://github.com/user-attachments/assets/15f51933-1eb7-4461-b495-75b7266a9f2a" />
+
 
 Mobile responsive views
