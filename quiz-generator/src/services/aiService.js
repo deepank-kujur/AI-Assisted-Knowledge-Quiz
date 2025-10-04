@@ -1,7 +1,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 // Initialize Gemini AI with your API key
-const genAI = new GoogleGenerativeAI("AIzaSyCAcK7r0rYaZDznh7ZmPPskMKKW_6oJx9c");
+const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY);
 
 // Configuration - Lower temperature for more consistent results
 const GEMINI_CONFIG = {
@@ -15,9 +15,9 @@ const GEMINI_CONFIG = {
 // Cache to prevent multiple API calls for same topic
 const questionCache = new Map();
 
-// Enhanced prompt templates for better consistency
+// Enhanced prompt templates for difficulty-based generation
 const PROMPT_TEMPLATES = {
-  topicSearch: `Generate exactly 5 multiple choice questions about "{topic}".
+  topicSearch: `Generate exactly 5 multiple choice questions about "{topic}" with {difficulty} difficulty.
 
 CRITICAL REQUIREMENTS:
 1. Return ONLY valid JSON array with exactly 5 questions
@@ -28,6 +28,12 @@ CRITICAL REQUIREMENTS:
 3. Questions should cover different aspects of {topic}
 4. Make only one option clearly correct, others plausible but wrong
 5. Do NOT include any explanations or additional text
+
+DIFFICULTY GUIDELINES:
+- Easy: Basic facts, definitions, straightforward concepts. Suitable for beginners.
+- Medium: Applied knowledge, moderate complexity, requires some understanding.
+- Hard: Advanced concepts, analytical thinking, detailed knowledge required.
+- Mixed: Combine questions from all difficulty levels.
 
 STRICT JSON FORMAT:
 [
@@ -44,15 +50,44 @@ Quiz Details:
 - Topic: {topic}
 - Score: {score} out of {totalQuestions}
 - Percentage: {percentage}%
+- Difficulty: {difficulty}
 
 IMPORTANT: Return ONLY the feedback text, no JSON or additional formatting.
 
 Make it:
 - Encouraging and motivational
 - Brief (under 60 words)
-- Appropriate for the score level
-- Include the score and topic
+- Appropriate for the score level and difficulty
+- Include the score, topic, and difficulty context
 - Focus on improvement and learning`
+};
+
+// Difficulty configuration matching the frontend
+const DIFFICULTY_CONFIG = {
+  easy: {
+    level: 'easy',
+    label: 'Beginner',
+    promptHint: 'basic and fundamental',
+    description: 'Basic concepts, straightforward questions'
+  },
+  medium: {
+    level: 'medium',
+    label: 'Intermediate',
+    promptHint: 'moderately challenging',
+    description: 'Balanced mix of concepts'
+  },
+  hard: {
+    level: 'hard',
+    label: 'Expert',
+    promptHint: 'advanced and challenging',
+    description: 'Advanced and detailed questions'
+  },
+  mixed: {
+    level: 'mixed',
+    label: 'Mixed',
+    promptHint: 'varied difficulty levels',
+    description: 'Random difficulty levels'
+  }
 };
 
 // Test function to check if Gemini API is working
@@ -78,11 +113,11 @@ export const testGeminiAPI = async () => {
   }
 };
 
-export const generateQuizQuestions = async (topic) => {
-  // Check cache first to prevent multiple calls
-  const cacheKey = topic.toLowerCase().trim();
+export const generateQuizQuestions = async (topic, difficulty = 'medium') => {
+  // Check cache first to prevent multiple calls - include difficulty in cache key
+  const cacheKey = `${topic.toLowerCase().trim()}_${difficulty}`;
   if (questionCache.has(cacheKey)) {
-    console.log('📦 Returning cached questions for:', topic);
+    console.log('📦 Returning cached questions for:', topic, 'with difficulty:', difficulty);
     return questionCache.get(cacheKey);
   }
 
@@ -91,15 +126,21 @@ export const generateQuizQuestions = async (topic) => {
 
   while (retryCount < maxRetries) {
     try {
-      console.log(`🔍 Generating questions for: "${topic}" (Attempt ${retryCount + 1})`);
+      console.log(`🔍 Generating questions for: "${topic}" with difficulty: "${difficulty}" (Attempt ${retryCount + 1})`);
 
       const model = genAI.getGenerativeModel({
         model: GEMINI_CONFIG.model,
         generationConfig: GEMINI_CONFIG.generationConfig
       });
 
-      const prompt = PROMPT_TEMPLATES.topicSearch.replace(/{topic}/g, topic);
-      console.log('📝 Prompt sent to AI');
+      // Get difficulty label for the prompt
+      const difficultyLabel = DIFFICULTY_CONFIG[difficulty]?.label || 'Medium';
+      
+      const prompt = PROMPT_TEMPLATES.topicSearch
+        .replace(/{topic}/g, topic)
+        .replace(/{difficulty}/g, difficultyLabel);
+      
+      console.log('📝 Prompt sent to AI with difficulty:', difficultyLabel);
 
       const result = await model.generateContent(prompt);
       const response = await result.response;
@@ -121,7 +162,13 @@ export const generateQuizQuestions = async (topic) => {
 
       // Enhanced validation
       if (validateQuestions(questions)) {
-        console.log('✅ Successfully generated AI questions for topic:', topic);
+        console.log('✅ Successfully generated AI questions for topic:', topic, 'with difficulty:', difficulty);
+        
+        // Add difficulty metadata to questions
+        questions = questions.map(q => ({
+          ...q,
+          difficulty: difficulty // Add difficulty to each question
+        }));
         
         // Cache the results
         questionCache.set(cacheKey, questions);
@@ -136,7 +183,7 @@ export const generateQuizQuestions = async (topic) => {
 
       if (retryCount >= maxRetries) {
         console.error('🚨 All retry attempts failed, using fallback questions');
-        const fallbackQuestions = getBasicFallbackQuestions(topic);
+        const fallbackQuestions = getBasicFallbackQuestions(topic, difficulty);
         // Cache fallback results too
         questionCache.set(cacheKey, fallbackQuestions);
         return fallbackQuestions;
@@ -150,9 +197,9 @@ export const generateQuizQuestions = async (topic) => {
   }
 };
 
-export const generateFeedback = async (score, totalQuestions, topic) => {
+export const generateFeedback = async (score, totalQuestions, topic, difficulty = 'medium') => {
   try {
-    console.log('🔄 Generating AI feedback...', { score, totalQuestions, topic });
+    console.log('🔄 Generating AI feedback...', { score, totalQuestions, topic, difficulty });
     
     const model = genAI.getGenerativeModel({
       model: GEMINI_CONFIG.model,
@@ -163,13 +210,16 @@ export const generateFeedback = async (score, totalQuestions, topic) => {
     });
 
     const percentage = Math.round((score / totalQuestions) * 100);
+    const difficultyLabel = DIFFICULTY_CONFIG[difficulty]?.label || 'Medium';
+    
     const prompt = PROMPT_TEMPLATES.feedback
       .replace(/{topic}/g, topic || 'the quiz')
       .replace(/{score}/g, score)
       .replace(/{totalQuestions}/g, totalQuestions)
-      .replace(/{percentage}/g, percentage);
+      .replace(/{percentage}/g, percentage)
+      .replace(/{difficulty}/g, difficultyLabel);
 
-    console.log('📝 Feedback prompt sent');
+    console.log('📝 Feedback prompt sent with difficulty context');
     const result = await model.generateContent(prompt);
     const response = await result.response;
     const feedback = response.text().trim();
@@ -179,7 +229,7 @@ export const generateFeedback = async (score, totalQuestions, topic) => {
     // ✅ ADD THIS VALIDATION: Check if feedback is empty
     if (!feedback || feedback.length < 5) {
       console.log('⚠️ AI returned empty feedback, using fallback');
-      return generateEnhancedFallbackFeedback(score, totalQuestions, topic);
+      return generateEnhancedFallbackFeedback(score, totalQuestions, topic, difficulty);
     }
     
     return feedback;
@@ -187,27 +237,36 @@ export const generateFeedback = async (score, totalQuestions, topic) => {
   } catch (error) {
     console.error('❌ AI feedback error:', error);
     console.log('🔄 Using fallback feedback');
-    return generateEnhancedFallbackFeedback(score, totalQuestions, topic);
+    return generateEnhancedFallbackFeedback(score, totalQuestions, topic, difficulty);
   }
 };
 
-// Enhanced fallback feedback function
-const generateEnhancedFallbackFeedback = (score, totalQuestions, topic) => {
+// Enhanced fallback feedback function with difficulty context
+const generateEnhancedFallbackFeedback = (score, totalQuestions, topic, difficulty = 'medium') => {
   const percentage = (score / totalQuestions) * 100;
   const topicName = topic || 'this topic';
+  //const difficultyLabel = DIFFICULTY_CONFIG[difficulty]?.label || 'Medium';
   
+  const difficultyContext = {
+    easy: "beginner",
+    medium: "intermediate", 
+    hard: "expert",
+    mixed: "mixed"
+  }[difficulty] || "intermediate";
+
   if (percentage === 0) {
-    return `You scored ${score}/${totalQuestions} on ${topicName}. Don't worry - every expert was once a beginner! Use this as motivation to learn more and try again. You've got this! 💪`;
+    return `You scored ${score}/${totalQuestions} on ${difficultyContext} level ${topicName}. Don't worry - every expert was once a beginner! Use this as motivation to learn more and try again. You've got this! 💪`;
   } else if (percentage < 50) {
-    return `You scored ${score}/${totalQuestions} on ${topicName}. Good effort! You're building your foundation. Review the material and you'll see great improvement in your next attempt! 📚`;
+    return `You scored ${score}/${totalQuestions} on ${difficultyContext} level ${topicName}. Good effort! You're building your foundation. Review the material and you'll see great improvement in your next attempt! 📚`;
   } else if (percentage < 80) {
-    return `You scored ${score}/${totalQuestions} on ${topicName}. Well done! You have a solid understanding. With a bit more practice, you'll master this topic completely! 🌟`;
+    return `You scored ${score}/${totalQuestions} on ${difficultyContext} level ${topicName}. Well done! You have a solid understanding. With a bit more practice, you'll master this topic completely! 🌟`;
   } else if (percentage < 100) {
-    return `You scored ${score}/${totalQuestions} on ${topicName}. Excellent work! You're very knowledgeable about this topic. Keep up the great learning journey! 🎉`;
+    return `You scored ${score}/${totalQuestions} on ${difficultyContext} level ${topicName}. Excellent work! You're very knowledgeable about this topic. Keep up the great learning journey! 🎉`;
   } else {
-    return `Perfect score! ${score}/${totalQuestions} on ${topicName}. Outstanding! You've completely mastered this topic. Consider challenging yourself with more advanced material! 🏆`;
+    return `Perfect score! ${score}/${totalQuestions} on ${difficultyContext} level ${topicName}. Outstanding! You've completely mastered this ${difficultyContext} level. Consider challenging yourself with more advanced material! 🏆`;
   }
 };
+
 // Enhanced response cleaning function
 const cleanAIResponse = (response) => {
   let cleaned = response.trim();
@@ -247,11 +306,11 @@ const validateQuestions = (questions) => {
   return true;
 };
 
-// Basic fallback data
-const getBasicFallbackQuestions = (topic) => {
-  console.log('📋 Using fallback questions for:', topic);
+// Enhanced fallback data with difficulty variations
+const getBasicFallbackQuestions = (topic, difficulty = 'medium') => {
+  console.log('📋 Using fallback questions for:', topic, 'with difficulty:', difficulty);
   
-  const BASIC_FALLBACK = {
+  const BASE_FALLBACK = {
     'Wellness': [
       {
         question: "What is the recommended daily water intake for adults?",
@@ -323,13 +382,23 @@ const getBasicFallbackQuestions = (topic) => {
     ]
   };
 
-  return BASIC_FALLBACK[topic] || BASIC_FALLBACK['Wellness'];
+  // Get base questions and add difficulty metadata
+  let questions = BASE_FALLBACK[topic] || BASE_FALLBACK['Wellness'];
+  
+  // Add difficulty to each question
+  questions = questions.map(q => ({
+    ...q,
+    difficulty: difficulty
+  }));
+
+  return questions;
 };
-
-
 
 // Clear cache function (optional - if you need to refresh questions)
 export const clearQuestionCache = () => {
   questionCache.clear();
   console.log('🧹 Question cache cleared');
 };
+
+// Export difficulty config for use in components
+export { DIFFICULTY_CONFIG };
