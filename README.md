@@ -50,7 +50,7 @@ npm or yarn package manager
 Quick Start
 bash
 ## Clone the repository
-git clone [your-repository-url]
+git clone 
 cd quiz-generator
 
 ### Install dependencies
