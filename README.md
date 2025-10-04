@@ -2,7 +2,7 @@
 
 An interactive quiz application that generates educational questions using AI and provides a seamless quiz experience with progress tracking and personalized feedback.
 
-## Live Demo: [Add your live demo link here]
+## Live Demo: https://ai-assisted-knowledge-quiz-5f5r.onrender.com
 ## Problem Statement:
 Create an interactive knowledge quiz application that uses AI to generate quiz questions based on selected topics. The application should provide a smooth user experience with topic selection, question navigation, progress tracking, and AI-generated feedback upon completion.
 
@@ -136,32 +136,30 @@ The application uses AI APIs with carefully crafted prompts to ensure consistent
 javascript
 // Example AI prompt structure
 const PROMPT_TEMPLATES = {
-  topicSearch: `Generate exactly 5 multiple choice questions about "{topic}" with {difficulty} difficulty.
+  topicSearch: `CRITICAL: You MUST return ONLY valid JSON. No other text.
 
-CRITICAL REQUIREMENTS:
-1. Return ONLY valid JSON array with exactly 5 questions
-2. Each question must have:
-   - "question" (clear, specific question)
-   - "options" (exactly 4 options as strings)
-   - "correctAnswer" (number 0-3 for correct option index)
-3. Questions should cover different aspects of {topic}
-4. Make only one option clearly correct, others plausible but wrong
-5. Do NOT include any explanations or additional text
+Generate exactly 5 multiple choice questions about "{topic}" with {difficulty} difficulty.
 
-DIFFICULTY GUIDELINES:
-- Easy: Basic facts, definitions, straightforward concepts. Suitable for beginners.
-- Medium: Applied knowledge, moderate complexity, requires some understanding.
-- Hard: Advanced concepts, analytical thinking, detailed knowledge required.
-- Mixed: Combine questions from all difficulty levels.
+REQUIREMENTS:
+- Return ONLY a JSON array with exactly 5 objects
+- Each object must have: "question", "options" (array of 4 strings), "correctAnswer" (number 0-3)
+- Ensure JSON syntax is perfect: use double quotes, no trailing commas, proper brackets
+- Make questions specific to the topic
+- Make only one option clearly correct
 
-STRICT JSON FORMAT:
+DIFFICULTY-SPECIFIC GUIDELINES:
+{difficultyGuidelines}
+
+EXAMPLE FORMAT:
 [
   {
-    "question": "Question text?",
+    "question": "What is...?",
     "options": ["Option A", "Option B", "Option C", "Option D"],
     "correctAnswer": 0
   }
-]`,
+]
+
+NOW GENERATE FOR: "{topic}" at {difficulty} level. RETURN ONLY JSON:`,
 
   feedback: `Create personalized feedback for a quiz result.
 
@@ -180,6 +178,7 @@ Make it:
 - Include the score, topic, and difficulty context
 - Focus on improvement and learning`
 };
+
 
 ## 🎨 Theme System
 ### Dark Mode Features
@@ -235,4 +234,4 @@ light mode:
 <img width="1919" height="1019" alt="Screenshot 2025-10-04 163910" src="https://github.com/user-attachments/assets/3b9dcf49-2a43-4dd1-aecb-d9f24d88cc46" />
 
 
-Mobile responsive views
+
